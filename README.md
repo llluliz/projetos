@@ -1,4 +1,4 @@
-# projeto Braço Robotico Controlado por Sensor de Movimento
+# Projeto Braço Robotico Controlado por Sensor de Movimento
 
 O projeto de braço robótico foi pensado para simular os movimentos humanos de forma mais precisa possível. Assim proporcionando segurança em manipulações de objetos em lugares de risco, como por exemplo em ambientes radioativos, onde até hoje é necessaria manipulação humana pela precisão e rápida capacidade de ação em casos de erros.
 
