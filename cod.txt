@@ -1,0 +1,476 @@
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentHashMap;
+
+
+import com.leapmotion.leap.processing.LeapMotion;
+import com.leapmotion.leap.Controller;
+import com.leapmotion.leap.Frame;
+import com.leapmotion.leap.Gesture;
+import com.leapmotion.leap.Hand;
+import com.leapmotion.leap.HandList;
+import com.leapmotion.leap.Vector;
+import com.leapmotion.leap.Finger;
+
+import processing.serial.*;
+
+LeapMotion leapMotion;
+
+
+ConcurrentMap<Float, Vector> fingerPositions;
+ConcurrentMap<Integer, Vector> toolPositions;
+
+Serial myPort;  // Create object from Serial class
+
+
+float x_old = 0;
+float z_old = 0;
+
+int fingers = 0;
+
+int estendido=0;
+
+float module_Thumb;
+float module_Index;
+float module_Middle;
+float module_Ring;
+float module_Pinky;
+
+
+////////////////////////////////////////////////////////////////////////
+////////////a respeito do range dos dedos para segurança dos cabos
+
+float Thumb_Min = 58; // menor angulo do dedão            // range de 19
+float Thumb_Max = 77; // maior angulo do dedão
+float Index_Min = 55;                                     //range de 40
+float Index_Max = 95;
+float Middle_Min = 55;                                    //range de 43 
+float Middle_Max = 98;
+float Ring_Min = 60;                                      //range de 36
+float Ring_Max = 96;
+float Pinky_Min = 53 ;                                    //range de 35
+float Pinky_Max = 88;
+
+float Range_Thumb = (Thumb_Max - Thumb_Min) /100;  // calcula o range e divide por 100 (ex 0,19)
+float Range_Index = (Index_Max - Index_Min) /100;
+float Range_Middle = (Middle_Max - Middle_Min) /100;
+float Range_Ring = (Ring_Max - Ring_Min) /100;
+float Range_Pinky = (Pinky_Max - Pinky_Min) /100;
+
+
+////////////////////////////////////////////////////////////////////////
+////////////a respeito do range dos servos
+
+
+
+
+
+float angle_min_Thumb = 20;
+float angle_max_Thumb = 140;
+float angle_min_Index = 20;
+float angle_max_Index = 160;
+float angle_min_Middle = 12;
+float angle_max_Middle = 165;
+float angle_min_Ring = 20;
+float angle_max_Ring = 150;
+float angle_min_Pinky = 40;
+float angle_max_Pinky = 180;
+
+float Servo_Thumb_Min = (angle_min_Thumb / 180) * 2000 + 500; // menor angulo do dedão            
+float Servo_Thumb_Max = (angle_max_Thumb / 180) * 2000 + 500; // maior angulo do dedão
+float Servo_Index_Min = (angle_min_Index / 180) * 2000 + 500;                                     
+float Servo_Index_Max = (angle_max_Index / 180) * 2000 + 500;
+float Servo_Middle_Min = (angle_min_Middle / 180) * 2000 + 500;                                     
+float Servo_Middle_Max = (angle_max_Middle / 180) * 2000 + 500;
+float Servo_Ring_Min = (angle_min_Ring / 180) * 2000 + 500;                                      
+float Servo_Ring_Max = (angle_max_Ring / 180) * 2000 + 500;
+float Servo_Pinky_Min = (angle_min_Pinky / 180) * 2000 + 500;                                    
+float Servo_Pinky_Max = (angle_max_Pinky / 180) * 2000 + 500;
+
+float Servo_Thumb = (Servo_Thumb_Max - Servo_Thumb_Min); // calcula o range do servo motor 
+float Servo_Index = (Servo_Index_Max - Servo_Index_Min);
+float Servo_Middle = (Servo_Middle_Max - Servo_Middle_Min);
+float Servo_Ring = (Servo_Ring_Max - Servo_Ring_Min);
+float Servo_Pinky = (Servo_Pinky_Max - Servo_Pinky_Min);
+
+
+
+
+
+
+// saída em Pulso (Min 500, Máx 2500, Range 2000)
+//float Thumb = ((result_Thumb / 100) * 2000) +500;  // transforma a porcentagem em tempo entre 500 ms e 2500 ms
+//float Index = ((result_Index / 100) * 2000) +500;
+//float Middle = ((result_Middle / 100) * 2000) +500;
+//float Ring = ((result_Ring / 100) * 2000) +500;
+//float Pinky = ((result_Pinky / 100) * 2000) +500;
+
+
+
+
+//AudioOutput out;
+
+// the Oscil we use for modulating frequency.
+//Oscil fm;
+
+void setup()
+{
+   size(450, 450);
+   background(20);
+   
+   leapMotion = new LeapMotion(this);
+   fingerPositions = new ConcurrentHashMap<Float, Vector>();
+   toolPositions = new ConcurrentHashMap<Integer, Vector>();
+  
+    String portName = Serial.list()[0]; //change the 0 to a 1 or 2 etc. to match your port
+    myPort = new Serial(this, portName, 115200);
+
+}
+
+void draw()
+{
+  fill(20);
+  rect(0, 0, width, height);
+  
+  for (Map.Entry entry : fingerPositions.entrySet())
+  {
+    Integer fingerId = (Integer) entry.getKey();
+    Vector position = (Vector) entry.getValue();
+
+  }
+  for (Map.Entry entry : toolPositions.entrySet())
+  {
+    Integer toolId = (Integer) entry.getKey();
+    Vector position = (Vector) entry.getValue();
+
+
+    
+  }
+}
+
+
+//called reflexively by the leap controller
+void onInit(final Controller controller)
+{
+  
+  controller.enableGesture(Gesture.Type.TYPE_CIRCLE);
+  controller.enableGesture(Gesture.Type.TYPE_KEY_TAP);
+  controller.enableGesture(Gesture.Type.TYPE_SCREEN_TAP);
+  controller.enableGesture(Gesture.Type.TYPE_SWIPE);
+ 
+}
+
+
+// in real-time using the hand.
+void onFrame(final Controller controller)
+{
+  Frame frame = controller.frame();
+  HandList hands = frame.hands();
+  
+  fingers = countExtendedFingers(controller); 
+  // myPort.write("#1P2080T200\r\n");
+  if (hands.count() > 0)// && fingers == 5 )
+  {
+  
+   Hand hand = hands.get(0);
+   //Vector pos = hand.palmPosition();
+   
+  //Vector wrist = hand.wristPosition();
+   
+   //Vector wrist = hand.wristPosition();
+   
+   
+   float palm_x = pos.getX();
+   float palm_y = pos.getY();  
+   float palm_z = pos.getZ();
+   
+   float wrist_x = wrist.getX();
+   float wrist_y = wrist.getY();  
+   float wrist_z = wrist.getZ();
+   
+   
+   //module_wrist = sqrt((pow((finger_thumb_pos_X - palm_x),2) + pow((finger_thumb_pos_Y - palm_y),2) + pow((finger_thumb_pos_Z - palm_z),2)));
+   
+   for (Finger finger : frame.fingers())
+   {
+       
+        Vector fingerpos = finger.tipPosition();
+        
+        int fingerId = finger.id();
+        
+   float finger_thumb_pos_X;
+   float finger_thumb_pos_Y;
+   float finger_thumb_pos_Z;
+   
+   float finger_index_pos_X;
+   float finger_index_pos_Y;
+   float finger_index_pos_Z;
+   
+   float finger_middle_pos_X;
+   float finger_middle_pos_Y;
+   float finger_middle_pos_Z;
+   
+   float finger_ring_pos_X;
+   float finger_ring_pos_Y;
+   float finger_ring_pos_Z;
+   
+   float finger_pinky_pos_X;
+   float finger_pinky_pos_Y;
+   float finger_pinky_pos_Z;   
+   
+        
+    if (finger.type().toString().equals("TYPE_THUMB"))
+    {
+     finger_thumb_pos_X = fingerpos.getX();   
+     finger_thumb_pos_Y = fingerpos.getY();   
+     finger_thumb_pos_Z = fingerpos.getZ();   
+     
+     module_Thumb = sqrt((pow((finger_thumb_pos_X - palm_x),2) + pow((finger_thumb_pos_Y - palm_y),2) + pow((finger_thumb_pos_Z - palm_z),2)));
+     
+     
+     if (module_Thumb < Thumb_Min) {
+       module_Thumb = Thumb_Min;}
+     if (module_Thumb > Thumb_Max) {
+       module_Thumb = Thumb_Max;}  
+     
+     float result_Thumb = (module_Thumb - Thumb_Min)/ Range_Thumb; // dá o resultado em porcentagem
+     float Thumb = Servo_Thumb * (result_Thumb / 100) + 500;
+     float Thumb_Out = ((Thumb - 500)/2000 * 180) + angle_min_Thumb;
+     
+     
+     myPort.write("#5P"+(int)Thumb+"T100"+"\r\n");
+     delay(1);
+     
+     println("Thumb Palm Module: "+ module_Thumb +"mm");
+     println("Thumb Percent: "+ result_Thumb + "%");
+     println("Thumb Servo Angle: "+ (int)Thumb_Out+"º");
+     println("500 a 2500: "+ (int)Thumb + "ms");;
+     
+     
+    
+  
+///////////////////////
+    } 
+    
+    if (finger.type().toString().equals("TYPE_INDEX"))
+    {
+      
+     finger_index_pos_X = fingerpos.getX();   
+     finger_index_pos_Y = fingerpos.getY();   
+     finger_index_pos_Z = fingerpos.getZ();   
+     
+     module_Index = sqrt((pow((finger_index_pos_X - palm_x),2) + pow((finger_index_pos_Y - palm_y),2) + pow((finger_index_pos_Z - palm_z),2)));
+     
+     if (module_Index < Index_Min) {
+       module_Index = Index_Min;}
+     if (module_Index > Index_Max) {
+       module_Index = Index_Max;} 
+     
+     float result_Index = (module_Index - Index_Min)/ Range_Index;
+     float Index = Servo_Index * (result_Index / 100) + 500;
+     float Index_Out = ((Index - 500)/2000 * 180) + angle_min_Index;
+     
+     
+     myPort.write("#4P"+(int)Index+"T100"+"\r\n");
+     delay(1);
+     
+     println("Index Palm Module: "+ module_Index +"mm");
+     println("Index Percent: "+ result_Index + "%");
+     println("Index Servo Angle: "+ (int)Index_Out+"º");
+     println("500 a 2500: "+ (int)Index + "ms");
+     
+    }  
+    
+     if (finger.type().toString().equals("TYPE_MIDDLE"))
+    {
+     finger_middle_pos_X = fingerpos.getX();   
+     finger_middle_pos_Y = fingerpos.getY();   
+     finger_middle_pos_Z = fingerpos.getZ();   
+         
+     module_Middle= sqrt((pow((finger_middle_pos_X - palm_x),2) + pow((finger_middle_pos_Y - palm_y),2) + pow((finger_middle_pos_Z - palm_z),2)));
+     
+     if (module_Middle < Middle_Min) {
+       module_Middle = Middle_Min;}
+     if (module_Middle > Middle_Max) {
+       module_Middle = Middle_Max;}
+         
+     float result_Middle = (module_Middle - Middle_Min)/ Range_Middle;
+     float Middle = Servo_Middle * (result_Middle / 100) + 500;
+     float Middle_Out = ((Middle - 500)/2000 * 180) + angle_min_Middle;
+     
+     
+     myPort.write("#3P"+(int)Middle+"T100"+"\r\n");
+     delay(1);
+     
+     println("Middle Palm Module: "+ module_Middle +"mm");
+     println("Middle Percent: "+ result_Middle + "%");
+     println("Middle Servo Angle: "+ (int)Middle_Out+"º");
+     println("500 a 2500: "+ (int)Middle + "ms");
+     
+    }  
+    
+    
+    if (finger.type().toString().equals("TYPE_RING"))
+    {
+     finger_ring_pos_X = fingerpos.getX();   
+     finger_ring_pos_Y = fingerpos.getY();   
+     finger_ring_pos_Z = fingerpos.getZ();   
+     
+     module_Ring = sqrt((pow((finger_ring_pos_X - palm_x),2) + pow((finger_ring_pos_Y - palm_y),2) + pow((finger_ring_pos_Z - palm_z),2)));
+     
+     if (module_Ring < Ring_Min) {
+       module_Ring = Ring_Min;}
+     if (module_Ring > Ring_Max) {
+       module_Ring = Ring_Max;}
+       
+     float result_Ring = (module_Ring - Ring_Min)/ Range_Ring;
+     float Ring = Servo_Ring * (result_Ring / 100) + 500;
+     float Ring_Out = ((Ring - 500)/2000 * 180) + angle_min_Ring;
+     
+     
+     myPort.write("#2P"+(int)Ring+"T100"+"\r\n");
+     delay(1);
+     
+     println("Ring Palm Module: "+ module_Ring +"mm");
+     println("Ring Percent: "+ result_Ring + "%");
+     println("Ring Servo Angle: "+ (int)Ring_Out+"º");
+     println("500 a 2500: "+ (int)Ring + "ms");
+     
+     
+    }  
+    
+    if (finger.type().toString().equals("TYPE_PINKY"))
+    {
+     finger_pinky_pos_X = fingerpos.getX();   
+     finger_pinky_pos_Y = fingerpos.getY();   
+     finger_pinky_pos_Z = fingerpos.getZ();   
+     
+     module_Pinky = sqrt((pow((finger_pinky_pos_X - palm_x),2) + pow((finger_pinky_pos_Y - palm_y),2) + pow((finger_pinky_pos_Z - palm_z),2)));
+     
+     if (module_Pinky < Pinky_Min) {
+       module_Pinky = Pinky_Min;}
+     if (module_Pinky > Pinky_Max) {
+       module_Pinky = Pinky_Max;}
+       
+     float result_Pinky = (module_Pinky - Pinky_Min)/ Range_Pinky;
+     float Pinky = Servo_Pinky * (result_Pinky / 100) + 500;
+     float Pinky_Out = ((Pinky - 500)/2000 * 180) + angle_min_Pinky;
+     
+     
+     
+     myPort.write("#1P"+(int)Pinky+"T100"+"\r\n");
+     
+     
+     println("Pinky Palm Module: "+ module_Pinky +"mm");
+     println("Pinky Percent: "+ result_Pinky + "%");
+     println("Pinky Servo Angle: "+ (int)Pinky_Out+"º");
+     println("500 a 2500: "+ (int)Pinky + "ms");
+     delay(1);
+     
+     
+    }     
+     
+        
+        
+        float palmy_max = 380;
+        float palmy_min = 50;
+        float palmy_dif = (palmy_max - palmy_min);
+        float y_dif = (palm_y / (palmy_dif / 100));
+        
+        float angley_max = 1150;
+        float angley_min = 1500;
+        float angley_dif = (angley_max - angley_min ); // range
+        
+        float y = angley_min + (y_dif * (angley_dif / 100));
+        
+        
+       if (palm_y < palmy_min) {
+       palm_y = palmy_min ;}
+       if (palm_y > palmy_max ) {
+       palm_y = palmy_max;}  
+        
+        
+        
+        //myPort.write("#1P"+(int)y+"T100"+"\r\n");
+        //delay(1);
+        
+        
+        println("Palm y: "+ palm_y);
+        println("dif %: "+ y_dif);
+        println("ANGLE DIF: "+ angley_dif);
+        println("dif 0 a 400: "+ y);
+        println("///////////////////");
+        delay(1);
+        
+        
+        ///////////////////////////////////////////
+        
+        float palmx_max = 60;
+        float palmx_min = -60;
+        float palmx_dif = (((palmx_max * 2) + palmx_min) * 2);
+        float x_dif = 50 + (palm_x / (palmx_dif / 100));
+        
+        float anglex_max = 2000;
+        float anglex_min = 2500;
+        float anglex_dif = (anglex_max - anglex_min ); // range
+        
+        float x = anglex_min + (x_dif * (anglex_dif / 100));
+        
+        if (palm_x < palmx_min) {
+       palm_x = palmx_min ;}
+       if (palm_x > palmx_max ) {
+       palm_x = palmx_max;} 
+        
+        
+       // myPort.write("#2P"+(int)x+"T100"+"\r\n");
+        //delay(1);
+        
+      
+        
+        println("Palm x: "+ palm_x);
+        println("dif %: "+ x_dif);
+        println("ANGLE DIF: "+ anglex_dif);
+        println("dif -60 a +60: "+ x);
+        println("///////////////////");
+        
+        
+     
+
+   }
+  
+  }
+   
+   
+  }  
+
+  
+  
+  
+
+
+int countExtendedFingers(final Controller controller)
+{
+  int fingers = 0;
+  if (controller.isConnected())
+  {
+    Frame frame = controller.frame();
+    if (!frame.hands().isEmpty())
+    {
+      for (Hand hand : frame.hands())
+      {
+        int extended = 0;
+        for (Finger finger : hand.fingers())
+        {
+          if (finger.isExtended())
+          {
+            extended++;
+          }
+        }
+        fingers = Math.max(fingers, extended);
+   
+      }
+    }
+  }
+  return fingers;
+}
+
